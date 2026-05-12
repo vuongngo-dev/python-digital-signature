@@ -62,9 +62,12 @@ class CryptoRSA:
         phi = (p - 1) * (q - 1) # Euler's totient function
         
         e = 65537 # Fermat prime commonly used as Public Key
+        if self.gcd(e, phi) != 1:
+            e = 3
         d = self.mod_inverse(e, phi) # Private Key
         
         self.public_key = (e, n)
         self.private_key = (d, n)
+        
         # Returns (private_key, public_key) to match signing workflow
         return self.private_key, self.public_key
