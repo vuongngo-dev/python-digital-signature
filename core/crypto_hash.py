@@ -32,7 +32,6 @@ class CryptoHash:
         return (n >> x) | (n << (32 - x)) & 0xFFFFFFFF
     
     def ch256_pure(self, mess: bytes) -> bytes: # Compression function
-        # Choose input A or input B
         h = [
             0x6a09e667,
             0xbb67ae85,
