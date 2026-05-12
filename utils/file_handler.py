@@ -53,6 +53,50 @@ def save_signature_file(
     )
     return save_path
 
+def save_envelope_file(
+    envelope: dict,
+    sender_public_key_pem: str,
+    save_path: Path
+    ) -> Path:
+    """
+    Save digital envelope file.
+
+    Args:
+        envelope: Envelope data containing encrypted_content, aes_nonce, encrypted_aes_key, signature
+        sender_public_key_pem: PEM encoded public key of the sender
+        save_path: File path to save
+    
+    Returns:
+        Path to saved file
+    """
+    save_path = Path(save_path)
+    if not save_path.name.endswith(ENV_EXTENSION):
+        save_path = save_path.with_suffix("").with_suffix("") 
+        save_path = Path(str(save_path) + ENV_EXTENSION)
+
+    data = {
+        "type": "digital_envelope",
+        "version": "1.0",
+        "timestamp": datetime.datetime.now().isoformat(),
+        "algorithm": {
+            "symmetric": "AES-256-GCM",
+            "asymmetric": "Textbook-RSA",
+            "signature": "RSA-PSS-SHA256"
+        },
+        "encrypted_content": envelope["encrypted_content"],
+        "aes_nonce": envelope["aes_nonce"],
+        "encrypted_aes_key": envelope["encrypted_aes_key"],
+        "signature": envelope["signature"],
+        "sender_public_key": sender_public_key_pem
+    }
+
+    save_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+    return save_path
+
+
 def load_file(path: Path) -> tuple[dict, str]:
     """
     Load digital signature file.
