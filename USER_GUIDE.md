@@ -1,204 +1,191 @@
-# 📖 Hướng Dẫn Sử Dụng — Digital Signer
+# 📖 User Guide — Digital Signer
 
-> **Digital Signer** là ứng dụng desktop cho phép bạn **ký số** và **xác minh chữ ký** trên văn bản, cũng như trao đổi tài liệu an toàn bằng **bao thư số (digital envelope)**.
-> Toàn bộ thao tác mật mã thực hiện cục bộ trên máy — **không có dữ liệu nào được gửi lên mạng**.
-
----
-
-## Mục Lục
-
-- [Yêu Cầu Hệ Thống](#yêu-cầu-hệ-thống)
-- [Cài Đặt &amp; Khởi Chạy](#cài-đặt--khởi-chạy)
-- [Tab Quản Lý Khóa](#tab-quản-lý-khóa-)
-- [Tab Ký Số](#tab-ký-số-)
-- [Tab Xác Minh](#tab-xác-minh-)
-- [Bao Thư Số](#bao-thư-số-digital-envelope)
-- [Định Dạng File](#định-dạng-file)
-- [Câu Hỏi Thường Gặp](#câu-hỏi-thường-gặp)
+> **Digital Signer** is a desktop application that allows you to **digitally sign** and **verify signatures** on documents, as well as securely exchange documents using **digital envelopes**.
+> All cryptographic operations are performed locally on your machine — **no data is sent over the network**.
 
 ---
 
-## Yêu Cầu Hệ Thống
+## Table of Contents
 
-| Thành phần   | Phiên bản tối thiểu                    |
+- [System Requirements](#system-requirements)
+- [Installation & Execution](#installation--execution)
+- [Key Management Tab](#key-management-tab-)
+- [Sign Tab](#sign-tab-)
+- [Verify Tab](#verify-tab-)
+- [Digital Envelope](#digital-envelope)
+- [File Formats](#file-formats)
+- [Frequently Asked Questions](#frequently-asked-questions)
+
+---
+
+## System Requirements
+
+| Component    | Minimum Version                        |
 | ------------ | -------------------------------------- |
-| Python       | 3.13+                                  |
+| Python       | 3.10+                                  |
 | PyQt6        | 6.6.0+                                 |
 | cryptography | 42.0.0+                                |
-| Hệ điều hành | Windows 10, macOS 12, Linux Ubuntu 22+ |
+| OS           | Windows 10, macOS 12, Linux Ubuntu 22+ |
 
 ---
 
-## Cài Đặt & Khởi Chạy
+## Installation & Execution
 
 ```bash
-# 1. Di chuyển vào thư mục dự án
-cd python-simple-signer
+# 1. Navigate to the project directory
+cd python-digital-signature
 
-# 2. Tạo môi trường ảo (khuyến nghị)
+# 2. Create a virtual environment (recommended)
 python -m venv .venv
 source .venv/bin/activate        # Linux / macOS
 # .venv\Scripts\activate         # Windows
 
-# 3. Cài đặt dependencies
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Khởi chạy ứng dụng
+# 4. Run the application
 python main.py
 ```
 
 ---
 
-## Tab Quản Lý Khóa 🔑
+## Key Management Tab 🔑
 
-**Bước đầu tiên** trước khi ký hoặc xác minh bất kỳ thứ gì.
+**The first step** before signing or verifying anything.
 
-### Tạo Cặp Khóa Mới
+### Generate a New Key Pair
 
-1. Chuyển sang tab **🔑 Quản Lý Khóa**.
-2. Nhập **Tên khóa** (ví dụ: `alice`, `my-company`). Chỉ dùng chữ cái, số, `-`, `_`.
-3. _(Tùy chọn)_ Nhập **Mật khẩu bảo vệ** để mã hóa private key.
-4. Nhấn **➕ Tạo Cặp Khóa**.
-5. Cặp khóa tạo ra:
-   - `alice_private.pem` — Private key (giữ bí mật tuyệt đối)
-   - `alice_public.pem` — Public key (chia sẻ tự do)
+1. Switch to the **🔑 Key Management** tab.
+2. Enter a **Key Name** (e.g., `alice`, `my-company`). Use only letters, numbers, `-`, `_`.
+3. _(Optional)_ Enter a **Password** to encrypt the private key.
+4. Click **➕ Generate Key**.
+5. The generated key pair:
+   - `alice_private.pem` — Private key (keep absolutely secret)
+   - `alice_public.pem` — Public key (share freely)
 
-> ⚠️ **Quan trọng:** Nếu đặt mật khẩu, hãy ghi nhớ cẩn thận. Mất mật khẩu = mất quyền truy cập private key.
+> ⚠️ **Important:** If you set a password, remember it carefully. Losing the password = losing access to the private key.
 
-### Xem & Chia Sẻ Public Key
+### View & Share Public Key
 
-- Chọn một khóa trong danh sách → nội dung PEM hiển thị ở khung phải.
-- Nhấn **📋 Sao chép PEM** để copy, sau đó gửi cho đối tác qua email.
+- Select a key from the list → the PEM content is displayed in the right pane.
+- Click **📋 Copy PEM** to copy, then send it to your partner via email.
 
-### Import Public Key Của Người Khác
+### Import Someone Else's Public Key
 
-1. Nhấn **📥 Import Public Key**.
-2. Chọn file `.pem` được cung cấp bởi đối tác.
-3. Khóa xuất hiện trong danh sách với biểu tượng 🔓 (chỉ public).
+1. Click **📥 Import Public Key**.
+2. Select the `.pem` file provided by your partner.
+3. The key appears in the list with a 🔓 icon (public only).
 
-### Xóa Khóa
+### Delete a Key
 
-- Chọn khóa → nhấn **🗑️ Xóa Khóa** → xác nhận. Hành động **không thể hoàn tác**.
-
----
-
-## Tab Ký Số ✍️
-
-### Ký Văn Bản Thông Thường
-
-1. Chuyển sang tab **✍️ Ký Số**.
-2. Chọn **Private Key** từ dropdown (chỉ hiển thị khóa có `_private.pem`).
-3. Nhập **mật khẩu** nếu key được bảo vệ.
-4. Nhập nội dung vào ô văn bản, hoặc nhấn **📂 Tải từ file** để đọc file `.txt`.
-5. Nhấn **✍️ Ký Số** → chọn nơi lưu file `.sig.json`.
-
-File `.sig.json` xuất ra chứa: nội dung gốc, chữ ký RSA-PSS-SHA256, public key người ký, timestamp.
-
-### Tạo Bao Thư Số
-
-1. Nhấn **📨 Tạo Bao Thư Số** trong tab Ký Số.
-2. Dialog mở ra, chọn:
-   - **Private key người gửi** (để ký)
-   - **Public key người nhận** (để mã hóa)
-   - **Nội dung** cần gửi
-3. Nhấn **📦 Tạo & Lưu** → lưu file `.env.json` → gửi cho người nhận.
+- Select a key → click **🗑️ Delete Key** → confirm. This action **cannot be undone**.
 
 ---
 
-## Tab Xác Minh 🔍
+## Sign Tab ✍️
 
-### Xác Minh Chữ Ký (`.sig.json`)
+### Sign Standard Text
 
-1. Chuyển sang tab **🔍 Xác Minh**.
-2. Nhấn **📂 Tải File** → chọn file `.sig.json`.
-3. Ứng dụng tự động xác minh và hiển thị:
-   - Nội dung gốc
-   - Thông tin người ký
-   - Kết quả: ✅ **HỢP LỆ** hoặc ❌ **KHÔNG HỢP LỆ**
+1. Switch to the **✍️ Sign Document** tab.
+2. Select a **Private Key** from the dropdown (only displays keys with `_private.pem`).
+3. Enter the **password** if the key is protected.
+4. Enter the content in the text box, or draw/import your signature in the canvas.
+5. Click **✍️ Sign** → choose where to save the `.sig.json` file.
 
-> Public key dùng để xác minh đã được **nhúng sẵn** trong file `.sig.json`.
+The output `.sig.json` file contains: original content, signature image (Base64), RSA-PSS-SHA256 signature, signer's public key, timestamp.
 
-### Mở Bao Thư Số (`.env.json`)
+### Create a Digital Envelope
 
-1. Tải file `.env.json`.
-2. Chọn **private key của người nhận** từ dropdown.
-3. Nhấn **🔓 Mở Bao Thư**.
-4. Nội dung gốc và trạng thái chữ ký người gửi hiển thị.
-
----
-
-## Bao Thư Số (Digital Envelope)
-
-Dùng khi bạn cần **vừa mã hóa vừa ký số** cho một người nhận cụ thể.
-
-**Kịch bản:** Alice gửi tài liệu bí mật cho Bob.
-
-| Bước | Thực hiện                                                                    |
-| ---- | ---------------------------------------------------------------------------- |
-| 1    | Alice import `bob_public.pem` vào ứng dụng                                   |
-| 2    | Alice tạo bao thư: chọn private key `alice`, public key `bob`, nhập nội dung |
-| 3    | Alice gửi file `.env.json` cho Bob                                           |
-| 4    | Bob tải file, chọn private key `bob`, nhấn Mở Bao Thư                        |
-| 5    | Bob đọc nội dung + xem chữ ký của Alice có hợp lệ không                      |
+1. Check the **Digital Envelope** option in the Sign Document tab.
+2. Ensure you have selected:
+   - **Sender's Private key** (for signing)
+   - **Recipient's Public key** (for encryption)
+   - The **Content** and **Signature** to send
+3. Click **📦 Sign / Create Envelope** → save the `.env.json` file → send to the recipient.
 
 ---
 
-## Định Dạng File
+## Verify Tab 🔍
 
-### File Chữ Ký (`.sig.json`)
+### Verify Signature (`.sig.json`)
+
+1. Switch to the **🔍 Verify** tab.
+2. Click **📂 Browse File...** → select the `.sig.json` file.
+3. Click **Verify**, the application automatically verifies and displays:
+   - Original content and signature image
+   - Signer's information
+   - Result: ✅ **VALID** or ❌ **INVALID**
+
+> The public key used for verification is **pre-embedded** within the `.sig.json` file.
+
+### Open Digital Envelope (`.env.json`)
+
+1. Load the `.env.json` file.
+2. The UI will prompt you to select the **recipient's private key** from the dropdown.
+3. Click **🔓 Verify / Open Envelope**.
+4. The original content and the status of the sender's signature will be displayed.
+
+---
+
+## Digital Envelope
+
+Used when you need to **both encrypt and digitally sign** for a specific recipient.
+
+**Scenario:** Alice sends a secret document to Bob.
+
+| Step | Action                                                                    |
+| ---- | ------------------------------------------------------------------------- |
+| 1    | Alice imports `bob_public.pem` into the application.                      |
+| 2    | Alice creates an envelope: selects `alice` private key, `bob` public key, enters content. |
+| 3    | Alice sends the `.env.json` file to Bob.                                  |
+| 4    | Bob loads the file, selects `bob` private key, clicks Open Envelope.      |
+| 5    | Bob reads the content and checks if Alice's signature is valid.           |
+
+---
+
+## File Formats
+
+### Signature File (`.sig.json`)
 
 ```json
 {
-  "type": "digital_signature",
-  "version": "1.0",
-  "timestamp": "2024-05-08T10:30:00.000000",
-  "algorithm": "RSA-PSS-SHA256",
-  "content": "Nội dung gốc...",
-  "signature": "<Base64 RSA-PSS signature>",
+  "content": "{\"text\": \"Original text...\", \"canvas_image\": \"<Base64 PNG>\"}",
+  "signature": "<Base64 signature>",
   "signer_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
 }
 ```
 
-### File Bao Thư Số (`.env.json`)
+### Digital Envelope File (`.env.json`)
 
 ```json
 {
-  "type": "digital_envelope",
-  "version": "1.0",
-  "timestamp": "2024-05-08T10:30:00.000000",
   "encrypted_content": "<Base64 AES-GCM ciphertext>",
   "aes_nonce": "<Base64 nonce 12 bytes>",
-  "aes_tag": "<Base64 auth tag 16 bytes>",
-  "encrypted_aes_key": "<Base64 RSA-OAEP(AES key)>",
-  "sender_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
-  "signature": "<Base64 RSA-PSS signature of payload>",
-  "algorithm": {
-    "symmetric": "AES-256-GCM",
-    "asymmetric": "RSA-OAEP-SHA256",
-    "signature": "RSA-PSS-SHA256"
-  }
+  "encrypted_aes_key": "<Base64 RSA(AES key)>",
+  "signature": "<Base64 signature of payload>",
+  "sender_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
 }
 ```
 
-### Khóa (thư mục `keys/`)
+### Keys (`keys/` directory)
 
-| File                 | Mô tả                                                            |
+| File                 | Description                                                      |
 | -------------------- | ---------------------------------------------------------------- |
-| `<name>_private.pem` | RSA 2048-bit private key (PKCS#8, tùy chọn mã hóa bằng mật khẩu) |
-| `<name>_public.pem`  | RSA 2048-bit public key (SubjectPublicKeyInfo)                   |
+| `<name>_private.pem` | Custom RSA 2048-bit private key (JSON wrapped in PEM base64)     |
+| `<name>_public.pem`  | Custom RSA 2048-bit public key (JSON wrapped in PEM base64)      |
 
 ---
 
-## Câu Hỏi Thường Gặp
+## Frequently Asked Questions
 
-**Q: Quên mật khẩu private key có khôi phục được không?**
-A: Không. Hãy tạo lại cặp khóa mới và phân phối public key mới cho đối tác.
+**Q: Can a forgotten private key password be recovered?**
+A: No. Generate a new key pair and distribute the new public key to your partners.
 
-**Q: File `.sig.json` có thể chia sẻ công khai không?**
-A: File này chứa nội dung **không mã hóa**. Chỉ chia sẻ nếu nội dung không cần bảo mật. Dùng `.env.json` nếu cần bảo mật nội dung.
+**Q: Can I share a `.sig.json` file publicly?**
+A: This file contains **unencrypted** content. Only share it if the content doesn't need to be kept secret. Use `.env.json` for content confidentiality.
 
-**Q: Public key có cần giữ bí mật không?**
-A: **Không.** Public key được thiết kế để chia sẻ tự do. Chỉ **private key** mới cần bảo vệ.
+**Q: Does the public key need to be kept secret?**
+A: **No.** The public key is designed to be shared freely. Only the **private key** must be protected.
 
-**Q: Ứng dụng có gửi dữ liệu lên server không?**
-A: **Hoàn toàn không.** Mọi thao tác thực hiện offline, cục bộ trên máy bạn.
+**Q: Does the application send data to a server?**
+A: **Absolutely not.** All operations are performed offline, locally on your machine.
