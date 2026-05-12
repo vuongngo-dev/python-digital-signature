@@ -14,7 +14,7 @@ class CryptoRSA:
         self.private_key = None
 
     def gcd(self, a: int, b: int) -> int: # Find the greatest common divisor of a and b
-        while b == 0:
+        while b != 0:
             a, b = b, a % b
         return a
 
@@ -62,10 +62,10 @@ class CryptoRSA:
         phi = (p - 1) * (q - 1) # Euler's totient function
         
         e = 65537 # Fermat prime commonly used as Public Key
+        if self.gcd(e, phi) != 1:
+            e = 3
         d = self.mod_inverse(e, phi) # Private Key
         
         self.public_key = (e, n)
         self.private_key = (d, n)
         return self.public_key, self.private_key
-
-    
