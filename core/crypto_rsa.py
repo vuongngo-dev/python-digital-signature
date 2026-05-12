@@ -14,7 +14,7 @@ class CryptoRSA:
         self.private_key = None
 
     def gcd(self, a: int, b: int) -> int: # Find the greatest common divisor of a and b
-        while b == 0:
+        while b != 0:
             a, b = b, a % b
         return a
 
@@ -66,6 +66,5 @@ class CryptoRSA:
         
         self.public_key = (e, n)
         self.private_key = (d, n)
-        return self.public_key, self.private_key
-
-    
+        # Returns (private_key, public_key) to match signing workflow
+        return self.private_key, self.public_key

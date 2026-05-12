@@ -77,17 +77,17 @@ class CryptoHash:
                 temp2 = (S0 + maj) & 0xFFFFFFFF
 
                 hh, g, f, e = g, f, e, (d + temp1) & 0xFFFFFFFF
-            d, c, b, a = c, b, a, (temp1 + temp2) & 0xFFFFFFFF
+                d, c, b, a = c, b, a, (temp1 + temp2) & 0xFFFFFFFF
 
-        # Add the compressed chunk to the initial hash
-        h[0] = (h[0] + a) & 0xFFFFFFFF
-        h[1] = (h[1] + b) & 0xFFFFFFFF
-        h[2] = (h[2] + c) & 0xFFFFFFFF
-        h[3] = (h[3] + d) & 0xFFFFFFFF
-        h[4] = (h[4] + e) & 0xFFFFFFFF
-        h[5] = (h[5] + f) & 0xFFFFFFFF
-        h[6] = (h[6] + g) & 0xFFFFFFFF
-        h[7] = (h[7] + hh) & 0xFFFFFFFF
+            # Add the compressed chunk to the initial hash
+            h[0] = (h[0] + a) & 0xFFFFFFFF
+            h[1] = (h[1] + b) & 0xFFFFFFFF
+            h[2] = (h[2] + c) & 0xFFFFFFFF
+            h[3] = (h[3] + d) & 0xFFFFFFFF
+            h[4] = (h[4] + e) & 0xFFFFFFFF
+            h[5] = (h[5] + f) & 0xFFFFFFFF
+            h[6] = (h[6] + g) & 0xFFFFFFFF
+            h[7] = (h[7] + hh) & 0xFFFFFFFF
 
         # Concatenate the 8 words to form the 256-bit hash
         return b''.join(val.to_bytes(4, byteorder='big') for val in h)
