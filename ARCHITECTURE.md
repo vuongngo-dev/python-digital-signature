@@ -1,40 +1,39 @@
-# 🏗️ Pipeline & Kiến Trúc Dự Án — Digital Signer
+# 🏗️ Pipeline & Project Architecture — Digital Signer
 
-Tài liệu này mô tả **cách hoạt động nội bộ** của Digital Signer, bao gồm kiến trúc module, luồng dữ liệu (pipeline) của từng chức năng, và các thuật toán mật mã được sử dụng.
-
----
-
-## Mục Lục
-
-- [Tổng Quan Kiến Trúc](#tổng-quan-kiến-trúc)
-- [Cấu Trúc Thư Mục](#cấu-trúc-thư-mục)
-- [Module crypto — Lõi Mật Mã](#module-crypto--lõi-mật-mã)
-- [Module utils — Tiện Ích File](#module-utils--tiện-ích-file)
-- [Module gui — Giao Diện](#module-gui--giao-diện)
-- [Pipeline: Tạo Cặp Khóa](#pipeline-tạo-cặp-khóa)
-- [Pipeline: Ký Số Văn Bản](#pipeline-ký-số-văn-bản)
-- [Pipeline: Xác Minh Chữ Ký](#pipeline-xác-minh-chữ-ký)
-- [Pipeline: Tạo Bao Thư Số](#pipeline-tạo-bao-thư-số)
-- [Pipeline: Mở Bao Thư Số](#pipeline-mở-bao-thư-số)
-- [Thuật Toán Mật Mã](#thuật-toán-mật-mã)
-- [Sơ Đồ Phụ Thuộc Module](#sơ-đồ-phụ-thuộc-module)
+This document describes the **internal workings** of the Digital Signer application, including the module architecture, the data pipeline of each feature, and the cryptographic algorithms used.
 
 ---
 
-## Tổng Quan Kiến Trúc
+## Table of Contents
 
-```
+- [Architecture Overview](#architecture-overview)
+- [Directory Structure](#directory-structure)
+- [Crypto Module — Cryptographic Core](#crypto-module--cryptographic-core)
+- [Utils Module — File Utilities](#utils-module--file-utilities)
+- [GUI Module — User Interface](#gui-module--user-interface)
+- [Pipeline: Key Generation](#pipeline-key-generation)
+- [Pipeline: Interactive Digital Signing \& Envelope Selection](#pipeline-interactive-digital-signing--envelope-selection)
+- [Pipeline: Signature Verification \& Backward Compatibility](#pipeline-signature-verification--backward-compatibility)
+- [Pipeline: Opening Digital Envelope](#pipeline-opening-digital-envelope)
+- [Cryptographic Algorithms](#cryptographic-algorithms)
+- [Module Dependency Diagram](#module-dependency-diagram)
+
+---
+
+## Architecture Overview
+
+```text
 ┌────────────────────────────────────────────────────┐
 │                   GUI Layer (PyQt6)                 │
-│  app.py │ sign_tab.py │ verify_tab.py │ keys_tab.py │
-│          └──── envelope_dialog.py ─────┘            │
+│        main_window.py      │       views.py        │
 └──────────────────────┬─────────────────────────────┘
-                       │ gọi hàm
+                       │ calls
 ┌──────────────────────▼─────────────────────────────┐
-│              Crypto Layer (cryptography)            │
-│   key_manager.py │ signer.py │ envelope.py          │
+│              Crypto / Controller Layer              │
+│   key_manager.py │ signer.py │ envolope.py          │
+│             core/crypto_rsa.py                      │
 └──────────────────────┬─────────────────────────────┘
-                       │ đọc/ghi
+                       │ reads/writes
 ┌──────────────────────▼─────────────────────────────┐
 │              Utils Layer                            │
 │             file_handler.py                         │
@@ -46,37 +45,35 @@ Tài liệu này mô tả **cách hoạt động nội bộ** của Digital Sign
 └────────────────────────────────────────────────────┘
 ```
 
-Kiến trúc chia thành **3 tầng rõ ràng**, không có phụ thuộc ngược (GUI → Crypto → Utils → FileSystem).
+The architecture is divided into **3 distinct layers**, without backward dependencies (GUI → Controller/Crypto → Utils → FileSystem).
 
 ---
 
-## Cấu Trúc Thư Mục
+## Directory Structure
 
-```
-python-simple-signer/
-├── main.py                  # Entry point — khởi tạo QApplication
-├── requirements.txt         # Dependency: cryptography, PyQt6
+```text
+python-digital-signature/
+├── main.py                  # Entry point — initializes QApplication
+├── requirements.txt         # Dependencies: PyQt6
 │
-├── crypto/                  # Lõi mật mã (không phụ thuộc GUI)
-│   ├── __init__.py
-│   ├── key_manager.py       # Tạo, load, liệt kê RSA key pairs
-│   ├── signer.py            # Ký số & xác minh RSA-PSS
-│   └── envelope.py          # Tạo & mở bao thư số hybrid
+├── core/                    # 🧠 Core custom cryptographic algorithms
+│   ├── crypto_rsa.py        # Custom RSA algorithm implementation
+│   ├── crypto_aes.py        # Custom AES-256-CTR algorithm
+│   └── crypto_hash.py       # Custom Hash implementation (SHA-256)
 │
-├── utils/                   # Tiện ích đọc/ghi file
-│   ├── __init__.py
-│   └── file_handler.py      # Lưu/load .sig.json & .env.json
+├── controller/              # ⚙️ Business logic (independent of GUI)
+│   ├── key_manager.py       # Generate, load, list RSA key pairs
+│   ├── signer.py            # Digital signing & verification
+│   └── envolope.py          # Create & open hybrid digital envelopes
 │
-├── gui/                     # Giao diện PyQt6
-│   ├── __init__.py
-│   ├── app.py               # Cửa sổ chính, QTabWidget
-│   ├── styles.py            # QSS stylesheet toàn cục
-│   ├── sign_tab.py          # Tab Ký Số
-│   ├── verify_tab.py        # Tab Xác Minh
-│   ├── keys_tab.py          # Tab Quản Lý Khóa
-│   └── envelope_dialog.py   # Dialog tạo bao thư số
+├── utils/                   # 🛠️ File I/O utilities
+│   └── file_handler.py      # Save/load .sig.json & .env.json
 │
-└── keys/                    # Lưu trữ key pairs (tạo tự động)
+├── gui/                     # 🖥️ PyQt6 User Interface
+│   ├── main_window.py       # Main window, Sidebar, QStackedWidget
+│   └── views.py             # Interfaces: KeyManagerView, SignerView, VerifierView
+│
+└── keys/                    # Key pair storage (auto-generated)
     ├── alice_private.pem
     ├── alice_public.pem
     └── ...
@@ -84,306 +81,196 @@ python-simple-signer/
 
 ---
 
-## Module crypto — Lõi Mật Mã
+## Crypto / Controller Module — Cryptographic Core
 
 ### `key_manager.py`
 
-Quản lý vòng đời RSA key pairs.
+Manages the lifecycle of RSA key pairs.
 
-| Hàm | Chức năng |
+| Function | Description |
 |---|---|
-| `generate_key_pair(name, passphrase)` | Tạo RSA 2048-bit, lưu PEM vào `keys/` |
-| `load_private_key(path, passphrase)` | Load private key từ file PEM |
-| `load_public_key(path)` | Load public key từ file PEM |
-| `list_key_pairs()` | Quét `keys/`, trả list dict thông tin các cặp khóa |
-| `get_public_key_pem(path)` | Đọc nội dung PEM public key dạng string |
+| `generate_key_pair(name, bits)` | Generates Custom RSA keys, saves PEM to `keys/` |
+| `load_private_key(path)` | Loads a private key from a PEM file |
+| `load_public_key(path)` | Loads a public key from a PEM file |
+| `list_key_pairs()` | Scans `keys/`, returns a list of dictionaries with key information |
+| `get_public_key_pem(path)` | Reads PEM public key content as a string |
 
 ### `signer.py`
 
-Ký số và xác minh đơn giản.
+Handles digital signing and simple verification.
 
-| Hàm | Chức năng |
+| Function | Description |
 |---|---|
-| `sign(content, private_key)` | Ký bytes/str → trả Base64 signature |
-| `verify(content, signature_b64, public_key)` | Xác minh chữ ký → True/False |
+| `sign(content, private_key)` | Signs bytes/str → returns signature bytes |
+| `verify(content, signature_bytes, public_key)` | Verifies the signature → True/False |
 
-### `envelope.py`
+### `envolope.py`
 
-Bao thư số hybrid (mã hóa + ký số).
+Hybrid digital envelope (encryption + signing) over the plain text content.
 
-| Hàm | Chức năng |
+| Function | Description |
 |---|---|
-| `create_envelope(content, recipient_pub, sender_priv)` | Tạo bao thư số → trả dict |
-| `open_envelope(envelope, recipient_priv)` | Mở bao thư → (content, sig_valid, sender_pem) |
+| `create_envelope(content, recipient_pub, sender_priv)` | Creates a digital envelope → returns an envelope dictionary |
+| `open_envelope(envelope, recipient_priv, sender_pub)` | Opens envelope → returns `(content_str, sig_valid)` |
 
 ---
 
-## Module utils — Tiện Ích File
+## Utils Module — File Utilities
 
 ### `file_handler.py`
 
-| Hàm | Chức năng |
+| Function | Description |
 |---|---|
-| `save_signature_file(content, sig_b64, pub_pem, path)` | Lưu `.sig.json` |
-| `save_envelope_file(envelope, path)` | Lưu `.env.json` |
-| `load_file(path)` | Load & phát hiện loại file, trả `(dict, "signature"\|"envelope")` |
-| `detect_file_type(path)` | Phát hiện loại file, không raise exception |
+| `save_signature_file(content_str, sig_b64, pub_pem, path)` | Saves `.sig.json` |
+| `save_envelope_file(envelope_dict, pub_pem, path)` | Saves `.env.json` |
+| `load_file(path)` | Loads & detects file type, returns `(dict, "signature"\|"envelope")` |
 
 ---
 
-## Module gui — Giao Diện
+## GUI Module — User Interface
 
-### `app.py` — Cửa Sổ Chính
+### `main_window.py` — Main Window
 
-- Khởi tạo `QMainWindow` với dark theme.
-- Chứa `QTabWidget` với 3 tab: **SignTab**, **VerifyTab**, **KeysTab**.
-- Kết nối signal `keys_tab.keys_changed` → tự động refresh dropdown khóa ở các tab khác.
+- Initializes `QMainWindow` with a sleek dark slate theme.
+- Contains a Sidebar and a `QStackedWidget` to switch between views: **KeyManagerView**, **SignerView**, **VerifierView**.
 
-### `keys_tab.py` — Tab Quản Lý Khóa
+### `views.py` — Application Views
 
-- Hiển thị danh sách key pairs từ `key_manager.list_key_pairs()`.
-- Cung cấp UI tạo khóa, import public key, xóa khóa, xem & copy PEM.
-- Phát signal `keys_changed` khi danh sách thay đổi.
-
-### `sign_tab.py` — Tab Ký Số
-
-- Dropdown chọn private key, ô nhập passphrase, editor nhập nội dung.
-- Gọi `key_manager.load_private_key()` → `signer.sign()` → `file_handler.save_signature_file()`.
-- Nút mở `EnvelopeDialog` để tạo bao thư số.
-
-### `verify_tab.py` — Tab Xác Minh
-
-- Load file `.sig.json` hoặc `.env.json`.
-- Tự động phân loại và hiển thị UI phù hợp (chữ ký thường vs bao thư).
-- Gọi `signer.verify()` hoặc `envelope.open_envelope()` theo loại file.
-
-### `envelope_dialog.py` — Dialog Bao Thư Số
-
-- Form chọn private key người gửi, public key người nhận, nhập nội dung.
-- Gọi `envelope.create_envelope()` → `file_handler.save_envelope_file()`.
+- **KeyManagerView**: Displays key lists from `key_manager`, UI to generate or import keys.
+- **SignerView**: UI for signing. Focuses purely on digital signatures of text content. Prompts the user using an interactive confirmation box to determine if the signature should be sealed inside a digital envelope.
+- **VerifierView**: UI for verifying signatures or opening envelopes. Automatically detects file type and adjusts UI.
 
 ---
 
-## Pipeline: Tạo Cặp Khóa
+## Pipeline: Key Generation
 
-```
-[Người dùng nhập tên + passphrase]
+```text
+[User inputs name]
         │
         ▼
-KeysTab.on_generate_clicked()
+KeyManagerView.generate_key()
         │
         ▼
-crypto/key_manager.generate_key_pair(name, passphrase)
+controller/key_manager.generate_key_pair(name, bits)
         │
-        ├─ rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        ├─ core.crypto_rsa.generate_rsa_keypair()
         │
-        ├─ [Có passphrase?]
-        │      Yes → BestAvailableEncryption(passphrase.encode())
-        │      No  → NoEncryption()
+        ├─ Serialize to Custom JSON-PEM format
         │
-        ├─ private_key.private_bytes(PEM, PKCS8, encryption)
-        │        → keys/<name>_private.pem
+        ├─ write to keys/<name>_private.pem
         │
-        └─ private_key.public_key().public_bytes(PEM, SubjectPublicKeyInfo)
-                 → keys/<name>_public.pem
+        └─ write to keys/<name>_public.pem
         │
         ▼
-KeysTab phát signal keys_changed → refresh tất cả dropdown
+KeyManagerView refreshes key list
 ```
 
 ---
 
-## Pipeline: Ký Số Văn Bản
+## Pipeline: Interactive Digital Signing & Envelope Selection
 
-```
-[Người dùng: chọn private key + nhập nội dung + nhấn Ký]
+When the user initiates a signature, the system shows an interactive selection dialog (Yes/No/Cancel) to decide if the document should be wrapped inside a digital envelope.
+
+```text
+[User: selects private key + inputs text + clicks Sign]
         │
         ▼
-SignTab.on_sign_clicked()
+SignerView.sign_document()
         │
-        ├─ key_manager.load_private_key(path, passphrase)
-        │        → RSAPrivateKey object
+        ▼
+[Interactive Dialog Prompt: QMessageBox]
+"Bạn có muốn đóng gói tài liệu này trong Bao Thư Số không?"
         │
-        ├─ signer.sign(content, private_key)
+        ├─────► [Yes] (Produce Envelope)
         │        │
-        │        ├─ content.encode("utf-8")  [nếu là str]
-        │        ├─ private_key.sign(
-        │        │     content,
-        │        │     PSS(mgf=MGF1(SHA256), salt=MAX_LENGTH),
-        │        │     SHA256()
-        │        │  )
-        │        └─ base64.b64encode(signature_bytes)
-        │               → "ABcd1234..." (Base64 string)
+        │        ├─ Check for selected recipient's Public Key
+        │        ├─ key_manager.load_private_key() → sender's priv
+        │        ├─ key_manager.load_public_key() → recipient's pub
+        │        ├─ envelope.create_envelope(doc_text, recipient_pub, sender_priv)
+        │        │    ├─ Encrypt text using Custom AES-256-CTR
+        │        │    ├─ Encrypt AES key using Recipient's Public Key
+        │        │    └─ Sign envelope payload using Sender's Private Key
+        │        └─ file_handler.save_envelope_file(envelope, path) → *.env.json
         │
-        ├─ key_manager.get_public_key_pem(public_path)
-        │        → "-----BEGIN PUBLIC KEY-----\n..."
+        ├─────► [No] (Produce Standard Digital Signature)
+        │        │
+        │        ├─ key_manager.load_private_key() → sender's priv
+        │        ├─ signer.sign(doc_text, sender_priv)
+        │        └─ file_handler.save_signature_file(doc_text, sig_b64, pub_pem, path) → *.sig.json
         │
-        └─ file_handler.save_signature_file(content, sig_b64, pub_pem, save_path)
+        └─────► [Cancel]
                  │
-                 └─ JSON { type, version, timestamp, algorithm,
-                           content, signature, signer_public_key }
-                          → output.sig.json
+                 └─ Abort operation
 ```
 
 ---
 
-## Pipeline: Xác Minh Chữ Ký
+## Pipeline: Signature Verification & Backward Compatibility
 
-```
-[Người dùng tải file .sig.json]
+The system is designed with backward compatibility. It can verify modern plain-text signatures as well as legacy signatures containing hand-drawn/image canvas components.
+
+```text
+[User loads .sig.json file]
         │
         ▼
-VerifyTab.on_load_file()
+VerifierView.verify_signature_action()
         │
-        ├─ file_handler.load_file(path)
-        │        → (data: dict, type: "signature")
+        ├─ file_handler.load_file(path) → (data: dict, type: "signature")
         │
-        └─ signer.verify(
-               content    = data["content"],
-               sig_b64    = data["signature"],
-               public_key = load_pem_public_key(data["signer_public_key"])
-           )
-                │
-                ├─ base64.b64decode(sig_b64)
-                ├─ public_key.verify(
-                │     signature_bytes,
-                │     content,
-                │     PSS(mgf=MGF1(SHA256), salt=MAX_LENGTH),
-                │     SHA256()
-                │  )
-                │
-                ├─ [Không raise exception] → True  → ✅ Hiển thị HỢP LỆ
-                └─ [InvalidSignature]      → False → ❌ Hiển thị KHÔNG HỢP LỆ
+        ├─ Parse data.content as JSON
+        │        │
+        │        ├─── [Has canvas_image?] (Legacy format)
+        │        │      └─ Reconstruct: text_part + "\n---CANVAS---\n" + canvas_image
+        │        │
+        │        └─── [No canvas_image?] (Modern format)
+        │               └─ Reconstruct: text_part
+        │
+        └─ signer.verify(full_content_to_sign, signature, public_key)
+                 │
+                 ├─ [Verify success] → ✅ Displays VALID
+                 └─ [Verify failed]  → ❌ Displays INVALID
 ```
 
 ---
 
-## Pipeline: Tạo Bao Thư Số
+## Pipeline: Opening Digital Envelope
 
-```
-[Người dùng: chọn sender priv key + recipient pub key + nội dung]
+```text
+[User loads .env.json + selects recipient private key]
         │
         ▼
-EnvelopeDialog.on_create_clicked()
-        │
-        ├─ load sender_private_key (RSAPrivateKey)
-        ├─ load recipient_public_key (RSAPublicKey)
+VerifierView.open_envelope_action()
         │
         ▼
-crypto/envelope.create_envelope(content, recipient_pub, sender_priv)
+controller/envolope.open_envelope(envelope, recipient_priv, sender_pub)
         │
-        ├─ [Bước 1] Tạo AES-256 key ngẫu nhiên
-        │        aes_key = os.urandom(32)   # 256-bit
-        │        nonce   = os.urandom(12)   # GCM nonce
+        ├─ [Step 1] Verify sender's signature on the payload metadata
+        │        → sig_valid: True / False
         │
-        ├─ [Bước 2] Mã hóa nội dung bằng AES-256-GCM
-        │        AESGCM(aes_key).encrypt(nonce, content, None)
-        │        → ciphertext (N bytes) + tag (16 bytes)
+        ├─ [Step 2] Decrypt AES key using Recipient's RSA Private Key
+        │        → aes_key
         │
-        ├─ [Bước 3] Mã hóa AES key bằng RSA-OAEP
-        │        recipient_pub.encrypt(
-        │            aes_key,
-        │            OAEP(mgf=MGF1(SHA256), algorithm=SHA256)
-        │        )
-        │        → encrypted_aes_key (256 bytes với RSA-2048)
+        ├─ [Step 3] Decrypt content using AES-256-CTR (Custom)
+        │        → Original payload
         │
-        ├─ [Bước 4] Tạo payload để ký (JSON canonical, sort_keys=True)
-        │        payload = {
-        │            encrypted_content, aes_nonce, aes_tag,
-        │            encrypted_aes_key, sender_public_key
-        │        }
-        │
-        ├─ [Bước 5] Ký payload bằng RSA-PSS-SHA256
-        │        signature = signer.sign(payload_bytes, sender_priv)
-        │
-        └─ Trả về envelope dict
+        └─ Return (content_str, sig_valid)
                  │
                  ▼
-        file_handler.save_envelope_file(envelope, path)
-                 → output.env.json
+        VerifierView displays text content + sender's signature verification status
 ```
 
 ---
 
-## Pipeline: Mở Bao Thư Số
+## Cryptographic Algorithms
 
-```
-[Người dùng tải file .env.json + chọn recipient private key]
-        │
-        ▼
-VerifyTab.on_open_envelope()
-        │
-        ├─ file_handler.load_file(path)
-        │        → (envelope: dict, type: "envelope")
-        │
-        ├─ load recipient_private_key (RSAPrivateKey)
-        │
-        ▼
-crypto/envelope.open_envelope(envelope, recipient_priv)
-        │
-        ├─ [Bước 1] Xác minh chữ ký người gửi
-        │        Tái tạo payload canonical từ các trường trong envelope
-        │        load sender_public_key từ envelope["sender_public_key"]
-        │        signer.verify(payload_bytes, envelope["signature"], sender_pub)
-        │        → sig_valid: True / False (không throw nếu sai)
-        │
-        ├─ [Bước 2] Giải mã AES key bằng recipient private key
-        │        recipient_priv.decrypt(
-        │            encrypted_aes_key,
-        │            OAEP(mgf=MGF1(SHA256), algorithm=SHA256)
-        │        )
-        │        → aes_key (32 bytes)
-        │        [Sai key → ValueError: "Bạn có dùng đúng private key không?"]
-        │
-        ├─ [Bước 3] Giải mã nội dung bằng AES-256-GCM
-        │        AESGCM(aes_key).decrypt(nonce, ciphertext + tag, None)
-        │        → content (bytes gốc)
-        │
-        └─ Trả về (content, sig_valid, sender_public_pem)
-                 │
-                 ▼
-        VerifyTab hiển thị nội dung + trạng thái chữ ký người gửi
-```
-
----
-
-## Thuật Toán Mật Mã
-
-| Mục đích | Thuật toán | Chi tiết |
+| Purpose | Algorithm | Details |
 |---|---|---|
-| Tạo khóa | RSA | 2048-bit, public exponent 65537 |
-| Bảo vệ private key | AES (BestAvailableEncryption) | Dùng passphrase người dùng |
-| Định dạng lưu trữ | PKCS#8 (private), SubjectPublicKeyInfo (public) | PEM encoding |
-| Ký số | RSA-PSS + SHA-256 | MGF1(SHA-256), salt = MAX_LENGTH |
-| Mã hóa AES key | RSA-OAEP + SHA-256 | MGF1(SHA-256), label = None |
-| Mã hóa nội dung | AES-256-GCM | Key 256-bit, Nonce 12-byte, Tag 16-byte |
-| Hashing | SHA-256 | Dùng trong PSS và OAEP |
-| Encoding output | Base64 | Tất cả binary data trong JSON |
+| Key Generation | Custom RSA | 2048-bit |
+| Content Encryption | AES-256-CTR (Custom) | Key 256-bit, Nonce 12-byte |
+| AES Key Encryption | Custom RSA | Encrypted with Recipient's Public Key |
+| Digital Signing | Custom RSA | Signed with Sender's Private Key |
+| Encoding output | Base64 | Used for binary data inside JSON formats |
 
 ---
 
-## Sơ Đồ Phụ Thuộc Module
-
-```
-main.py
-  └─► gui/app.py
-        ├─► gui/styles.py
-        ├─► gui/sign_tab.py
-        │      ├─► crypto/key_manager.py
-        │      ├─► crypto/signer.py
-        │      ├─► utils/file_handler.py
-        │      └─► gui/envelope_dialog.py
-        │              ├─► crypto/key_manager.py
-        │              ├─► crypto/envelope.py
-        │              │      └─► crypto/signer.py
-        │              └─► utils/file_handler.py
-        ├─► gui/verify_tab.py
-        │      ├─► crypto/key_manager.py
-        │      ├─► crypto/signer.py
-        │      ├─► crypto/envelope.py
-        │      └─► utils/file_handler.py
-        └─► gui/keys_tab.py
-               └─► crypto/key_manager.py
-```
-
-> **Nguyên tắc thiết kế:** Module `crypto/` và `utils/` **hoàn toàn độc lập** với GUI — có thể import và sử dụng từ script Python thuần không cần giao diện.
+> **Design Principle:** The `controller/`, `core/` and `utils/` modules are **completely independent** of the GUI — they can be imported and used from pure Python scripts without a user interface.
