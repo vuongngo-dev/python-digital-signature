@@ -5,8 +5,10 @@
 
 from .crypto_hash import CryptoHash
 from .crypto_rsa import CryptoRSA
+from .crypto_aes import CryptoAES
 
 __all__ = [
     "CryptoHash",
-    "CryptoRSA"
+    "CryptoRSA",
+    "CryptoAES"
 ]

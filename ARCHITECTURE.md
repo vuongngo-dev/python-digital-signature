@@ -1,6 +1,6 @@
 # 🏗️ Pipeline & Project Architecture — Digital Signer
 
-This document describes the **internal workings** of Digital Signer, including the module architecture, the data pipeline of each feature, and the cryptographic algorithms used.
+This document describes the **internal workings** of the Digital Signer application, including the module architecture, the data pipeline of each feature, and the cryptographic algorithms used.
 
 ---
 
@@ -12,9 +12,8 @@ This document describes the **internal workings** of Digital Signer, including t
 - [Utils Module — File Utilities](#utils-module--file-utilities)
 - [GUI Module — User Interface](#gui-module--user-interface)
 - [Pipeline: Key Generation](#pipeline-key-generation)
-- [Pipeline: Digital Signing](#pipeline-digital-signing)
-- [Pipeline: Signature Verification](#pipeline-signature-verification)
-- [Pipeline: Creating Digital Envelope](#pipeline-creating-digital-envelope)
+- [Pipeline: Interactive Digital Signing \& Envelope Selection](#pipeline-interactive-digital-signing--envelope-selection)
+- [Pipeline: Signature Verification \& Backward Compatibility](#pipeline-signature-verification--backward-compatibility)
 - [Pipeline: Opening Digital Envelope](#pipeline-opening-digital-envelope)
 - [Cryptographic Algorithms](#cryptographic-algorithms)
 - [Module Dependency Diagram](#module-dependency-diagram)
@@ -26,7 +25,7 @@ This document describes the **internal workings** of Digital Signer, including t
 ```text
 ┌────────────────────────────────────────────────────┐
 │                   GUI Layer (PyQt6)                 │
-│  main_window.py │ views.py │ canvas_widget.py       │
+│        main_window.py      │       views.py        │
 └──────────────────────┬─────────────────────────────┘
                        │ calls
 ┌──────────────────────▼─────────────────────────────┐
@@ -55,23 +54,24 @@ The architecture is divided into **3 distinct layers**, without backward depende
 ```text
 python-digital-signature/
 ├── main.py                  # Entry point — initializes QApplication
-├── requirements.txt         # Dependencies: cryptography, PyQt6
+├── requirements.txt         # Dependencies: PyQt6
 │
-├── core/                    # Core custom cryptographic algorithms
-│   └── crypto_rsa.py        # Custom RSA algorithm implementation
+├── core/                    # 🧠 Core custom cryptographic algorithms
+│   ├── crypto_rsa.py        # Custom RSA algorithm implementation
+│   ├── crypto_aes.py        # Custom AES-256-CTR algorithm
+│   └── crypto_hash.py       # Custom Hash implementation (SHA-256)
 │
-├── controller/              # Business logic (independent of GUI)
+├── controller/              # ⚙️ Business logic (independent of GUI)
 │   ├── key_manager.py       # Generate, load, list RSA key pairs
 │   ├── signer.py            # Digital signing & verification
 │   └── envolope.py          # Create & open hybrid digital envelopes
 │
-├── utils/                   # File I/O utilities
+├── utils/                   # 🛠️ File I/O utilities
 │   └── file_handler.py      # Save/load .sig.json & .env.json
 │
-├── gui/                     # PyQt6 User Interface
+├── gui/                     # 🖥️ PyQt6 User Interface
 │   ├── main_window.py       # Main window, Sidebar, QStackedWidget
-│   ├── views.py             # Interfaces: KeyManagerView, SignerView, VerifierView
-│   └── canvas_widget.py     # Drawing/Importing signature images
+│   └── views.py             # Interfaces: KeyManagerView, SignerView, VerifierView
 │
 └── keys/                    # Key pair storage (auto-generated)
     ├── alice_private.pem
@@ -106,12 +106,12 @@ Handles digital signing and simple verification.
 
 ### `envolope.py`
 
-Hybrid digital envelope (encryption + signing).
+Hybrid digital envelope (encryption + signing) over the plain text content.
 
 | Function | Description |
 |---|---|
-| `create_envelope(content, canvas_b64, recipient_pub, sender_priv)` | Creates a digital envelope → returns a dictionary |
-| `open_envelope(envelope, recipient_priv, sender_pub)` | Opens envelope → (content, canvas_b64, sig_valid) |
+| `create_envelope(content, recipient_pub, sender_priv)` | Creates a digital envelope → returns an envelope dictionary |
+| `open_envelope(envelope, recipient_priv, sender_pub)` | Opens envelope → returns `(content_str, sig_valid)` |
 
 ---
 
@@ -131,20 +131,14 @@ Hybrid digital envelope (encryption + signing).
 
 ### `main_window.py` — Main Window
 
-- Initializes `QMainWindow` with a dark slate theme.
+- Initializes `QMainWindow` with a sleek dark slate theme.
 - Contains a Sidebar and a `QStackedWidget` to switch between views: **KeyManagerView**, **SignerView**, **VerifierView**.
 
 ### `views.py` — Application Views
 
 - **KeyManagerView**: Displays key lists from `key_manager`, UI to generate or import keys.
-- **SignerView**: UI for signing. Includes `CanvasWidget` for drawn signatures. Calls `signer.sign()` or `envolope.create_envelope()`.
+- **SignerView**: UI for signing. Focuses purely on digital signatures of text content. Prompts the user using an interactive confirmation box to determine if the signature should be sealed inside a digital envelope.
 - **VerifierView**: UI for verifying signatures or opening envelopes. Automatically detects file type and adjusts UI.
-
-### `canvas_widget.py` — Signature Canvas
-
-- Custom QWidget for free-hand drawing using `QPainter`.
-- Supports importing and scaling images (`load_image`).
-- Exports canvas content as Base64 PNG.
 
 ---
 
@@ -173,31 +167,47 @@ KeyManagerView refreshes key list
 
 ---
 
-## Pipeline: Digital Signing
+## Pipeline: Interactive Digital Signing & Envelope Selection
+
+When the user initiates a signature, the system shows an interactive selection dialog (Yes/No/Cancel) to decide if the document should be wrapped inside a digital envelope.
 
 ```text
-[User: selects private key + inputs text/canvas + clicks Sign]
+[User: selects private key + inputs text + clicks Sign]
         │
         ▼
 SignerView.sign_document()
         │
-        ├─ canvas_b64 = canvas.get_base64_image()
+        ▼
+[Interactive Dialog Prompt: QMessageBox]
+"Bạn có muốn đóng gói tài liệu này trong Bao Thư Số không?"
         │
-        ├─ key_manager.load_private_key() → tuple(d, n)
-        │
-        ├─ signer.sign(content, private_key)
+        ├─────► [Yes] (Produce Envelope)
         │        │
-        │        ├─ Format content: text + canvas
-        │        └─ Custom RSA sign → signature bytes
+        │        ├─ Check for selected recipient's Public Key
+        │        ├─ key_manager.load_private_key() → sender's priv
+        │        ├─ key_manager.load_public_key() → recipient's pub
+        │        ├─ envelope.create_envelope(doc_text, recipient_pub, sender_priv)
+        │        │    ├─ Encrypt text using Custom AES-256-CTR
+        │        │    ├─ Encrypt AES key using Recipient's Public Key
+        │        │    └─ Sign envelope payload using Sender's Private Key
+        │        └─ file_handler.save_envelope_file(envelope, path) → *.env.json
         │
-        └─ file_handler.save_signature_file(content, sig_b64, pub_pem, save_path)
+        ├─────► [No] (Produce Standard Digital Signature)
+        │        │
+        │        ├─ key_manager.load_private_key() → sender's priv
+        │        ├─ signer.sign(doc_text, sender_priv)
+        │        └─ file_handler.save_signature_file(doc_text, sig_b64, pub_pem, path) → *.sig.json
+        │
+        └─────► [Cancel]
                  │
-                 └─ output.sig.json
+                 └─ Abort operation
 ```
 
 ---
 
-## Pipeline: Signature Verification
+## Pipeline: Signature Verification & Backward Compatibility
+
+The system is designed with backward compatibility. It can verify modern plain-text signatures as well as legacy signatures containing hand-drawn/image canvas components.
 
 ```text
 [User loads .sig.json file]
@@ -207,40 +217,18 @@ VerifierView.verify_signature_action()
         │
         ├─ file_handler.load_file(path) → (data: dict, type: "signature")
         │
-        └─ signer.verify(content, signature, public_key)
+        ├─ Parse data.content as JSON
+        │        │
+        │        ├─── [Has canvas_image?] (Legacy format)
+        │        │      └─ Reconstruct: text_part + "\n---CANVAS---\n" + canvas_image
+        │        │
+        │        └─── [No canvas_image?] (Modern format)
+        │               └─ Reconstruct: text_part
+        │
+        └─ signer.verify(full_content_to_sign, signature, public_key)
                  │
                  ├─ [Verify success] → ✅ Displays VALID
                  └─ [Verify failed]  → ❌ Displays INVALID
-```
-
----
-
-## Pipeline: Creating Digital Envelope
-
-```text
-[User: selects sender priv key + recipient pub key + content]
-        │
-        ▼
-SignerView.sign_document(is_envelope=True)
-        │
-        ▼
-controller/envolope.create_envelope(content, canvas, recipient_pub, sender_priv)
-        │
-        ├─ [Step 1] Generate random AES-256 key and nonce
-        │
-        ├─ [Step 2] Encrypt content using AES-256-GCM
-        │
-        ├─ [Step 3] Encrypt AES key using Recipient's RSA Public Key
-        │
-        ├─ [Step 4] Create payload: {ciphertext, nonce, encrypted_aes_key}
-        │
-        ├─ [Step 5] Sign payload using Sender's RSA Private Key
-        │
-        └─ Return envelope dict
-                 │
-                 ▼
-        file_handler.save_envelope_file(envelope, path)
-                 → output.env.json
 ```
 
 ---
@@ -256,19 +244,19 @@ VerifierView.open_envelope_action()
         ▼
 controller/envolope.open_envelope(envelope, recipient_priv, sender_pub)
         │
-        ├─ [Step 1] Verify sender's signature on the payload
+        ├─ [Step 1] Verify sender's signature on the payload metadata
         │        → sig_valid: True / False
         │
         ├─ [Step 2] Decrypt AES key using Recipient's RSA Private Key
         │        → aes_key
         │
-        ├─ [Step 3] Decrypt content using AES-256-GCM
+        ├─ [Step 3] Decrypt content using AES-256-CTR (Custom)
         │        → Original payload
         │
-        └─ Return (content_str, canvas_b64, sig_valid)
+        └─ Return (content_str, sig_valid)
                  │
                  ▼
-        VerifierView displays content + sender's signature status
+        VerifierView displays text content + sender's signature verification status
 ```
 
 ---
@@ -277,8 +265,8 @@ controller/envolope.open_envelope(envelope, recipient_priv, sender_pub)
 
 | Purpose | Algorithm | Details |
 |---|---|---|
-| Key Generation | Custom RSA | 2048-bit (configured) |
-| Content Encryption | AES-256-GCM | Key 256-bit, Nonce 12-byte |
+| Key Generation | Custom RSA | 2048-bit |
+| Content Encryption | AES-256-CTR (Custom) | Key 256-bit, Nonce 12-byte |
 | AES Key Encryption | Custom RSA | Encrypted with Recipient's Public Key |
 | Digital Signing | Custom RSA | Signed with Sender's Private Key |
 | Encoding output | Base64 | Used for binary data inside JSON formats |

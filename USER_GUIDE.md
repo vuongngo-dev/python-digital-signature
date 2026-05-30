@@ -24,7 +24,6 @@
 | ------------ | -------------------------------------- |
 | Python       | 3.10+                                  |
 | PyQt6        | 6.6.0+                                 |
-| cryptography | 42.0.0+                                |
 | OS           | Windows 10, macOS 12, Linux Ubuntu 22+ |
 
 ---
@@ -55,53 +54,34 @@ python main.py
 
 ### Generate a New Key Pair
 
-1. Switch to the **🔑 Key Management** tab.
-2. Enter a **Key Name** (e.g., `alice`, `my-company`). Use only letters, numbers, `-`, `_`.
-3. _(Optional)_ Enter a **Password** to encrypt the private key.
-4. Click **➕ Generate Key**.
-5. The generated key pair:
-   - `alice_private.pem` — Private key (keep absolutely secret)
-   - `alice_public.pem` — Public key (share freely)
-
-> ⚠️ **Important:** If you set a password, remember it carefully. Losing the password = losing access to the private key.
-
-### View & Share Public Key
-
-- Select a key from the list → the PEM content is displayed in the right pane.
-- Click **📋 Copy PEM** to copy, then send it to your partner via email.
+1. Switch to the **🔑 Quản lý Khóa** tab.
+2. Enter a **Key Name** in the "Tên khóa" field (e.g., `alice`, `my-company`). Use only letters, numbers, `-`, `_`.
+3. Click **Tạo Khóa RSA (2048-bit)**.
+4. The generated key pair:
+   - `<name>_private.pem` — Private key (keep absolutely secret, used to sign and decrypt)
+   - `<name>_public.pem` — Public key (share freely with recipients, used to verify and encrypt)
 
 ### Import Someone Else's Public Key
 
-1. Click **📥 Import Public Key**.
-2. Select the `.pem` file provided by your partner.
-3. The key appears in the list with a 🔓 icon (public only).
-
-### Delete a Key
-
-- Select a key → click **🗑️ Delete Key** → confirm. This action **cannot be undone**.
+1. Click **Nhập Khóa (.pem)**.
+2. Select the public `.pem` file provided by your partner.
+3. The key appears in the list showing its availability.
 
 ---
 
 ## Sign Tab ✍️
 
-### Sign Standard Text
+### Signing a Document / Choosing Figure
 
-1. Switch to the **✍️ Sign Document** tab.
-2. Select a **Private Key** from the dropdown (only displays keys with `_private.pem`).
-3. Enter the **password** if the key is protected.
-4. Enter the content in the text box, or draw/import your signature in the canvas.
-5. Click **✍️ Sign** → choose where to save the `.sig.json` file.
-
-The output `.sig.json` file contains: original content, signature image (Base64), RSA-PSS-SHA256 signature, signer's public key, timestamp.
-
-### Create a Digital Envelope
-
-1. Check the **Digital Envelope** option in the Sign Document tab.
-2. Ensure you have selected:
-   - **Sender's Private key** (for signing)
-   - **Recipient's Public key** (for encryption)
-   - The **Content** and **Signature** to send
-3. Click **📦 Sign / Create Envelope** → save the `.env.json` file → send to the recipient.
+1. Switch to the **✍️ Ký Tài liệu** tab.
+2. Select a **Private Key (Để Ký)** from the dropdown.
+3. If you plan to send this document in a **Digital Envelope**, select the recipient's **Public Key (Người Nhận)** from the corresponding dropdown.
+4. Enter the content in the **📝 Nội dung tài liệu** text box.
+5. Click **Thực hiện Ký / Đóng Bao Thư**.
+6. **Interactive Selection Box**: A message dialog will pop up asking:
+   - **Click Yes (Đồng ý)**: Seals the document inside a **Digital Envelope** (encrypts content with AES-256 and encrypts the AES key using the recipient's Public Key). Saves as a `.env.json` file.
+   - **Click No (Không)**: Performs a **Standard Digital Signature** on the plain text document. Saves as a `.sig.json` file.
+   - **Click Cancel (Hủy)**: Cancels the signing action completely.
 
 ---
 
@@ -109,20 +89,23 @@ The output `.sig.json` file contains: original content, signature image (Base64)
 
 ### Verify Signature (`.sig.json`)
 
-1. Switch to the **🔍 Verify** tab.
-2. Click **📂 Browse File...** → select the `.sig.json` file.
-3. Click **Verify**, the application automatically verifies and displays:
-   - Original content and signature image
+1. Switch to the **✅ Xác thực** tab.
+2. Click **Duyệt File...** → select the `.sig.json` file.
+3. Click **Tiến hành Xác Thực / Mở Bao Thư**.
+4. The application automatically verifies and displays:
+   - Original text content
    - Signer's information
-   - Result: ✅ **VALID** or ❌ **INVALID**
+   - Result: ✅ **VALID** (Chữ ký hợp lệ) or ❌ **INVALID** (Chữ ký không hợp lệ)
 
+> [!NOTE]
 > The public key used for verification is **pre-embedded** within the `.sig.json` file.
+> The system automatically supports legacy signature files containing canvas drawings/images for backward compatibility.
 
 ### Open Digital Envelope (`.env.json`)
 
 1. Load the `.env.json` file.
-2. The UI will prompt you to select the **recipient's private key** from the dropdown.
-3. Click **🔓 Verify / Open Envelope**.
+2. The UI will prompt you to select **your private key** from the dropdown to decrypt the envelope.
+3. Click **Tiến hành Xác Thực / Mở Bao Thư**.
 4. The original content and the status of the sender's signature will be displayed.
 
 ---
@@ -136,10 +119,11 @@ Used when you need to **both encrypt and digitally sign** for a specific recipie
 | Step | Action                                                                    |
 | ---- | ------------------------------------------------------------------------- |
 | 1    | Alice imports `bob_public.pem` into the application.                      |
-| 2    | Alice creates an envelope: selects `alice` private key, `bob` public key, enters content. |
-| 3    | Alice sends the `.env.json` file to Bob.                                  |
-| 4    | Bob loads the file, selects `bob` private key, clicks Open Envelope.      |
-| 5    | Bob reads the content and checks if Alice's signature is valid.           |
+| 2    | Alice enters the content, selects `alice` private key, and Bob's public key. |
+| 3    | Alice clicks sign and confirms "Yes" to create the envelope. Alice saves the `.env.json` file. |
+| 4    | Alice sends the `.env.json` file to Bob.                                  |
+| 5    | Bob loads the file, selects `bob` private key, clicks Verify/Open.      |
+| 6    | Bob reads the unencrypted content and checks if Alice's signature is valid. |
 
 ---
 
@@ -149,7 +133,11 @@ Used when you need to **both encrypt and digitally sign** for a specific recipie
 
 ```json
 {
-  "content": "{\"text\": \"Original text...\", \"canvas_image\": \"<Base64 PNG>\"}",
+  "type": "digital_signature",
+  "version": "1.0",
+  "timestamp": "2026-05-30T18:50:00",
+  "algorithm": "Custom-RSA-SHA256",
+  "content": "{\"text\": \"Original text...\"}",
   "signature": "<Base64 signature>",
   "signer_public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n"
 }
@@ -159,7 +147,15 @@ Used when you need to **both encrypt and digitally sign** for a specific recipie
 
 ```json
 {
-  "encrypted_content": "<Base64 AES-GCM ciphertext>",
+  "type": "digital_envelope",
+  "version": "1.0",
+  "timestamp": "2026-05-30T18:50:00",
+  "algorithm": {
+    "symmetric": "Custom-AES-256-CTR",
+    "asymmetric": "Custom-RSA",
+    "signature": "Custom-RSA-SHA256"
+  },
+  "encrypted_content": "<Base64 AES-CTR ciphertext>",
   "aes_nonce": "<Base64 nonce 12 bytes>",
   "encrypted_aes_key": "<Base64 RSA(AES key)>",
   "signature": "<Base64 signature of payload>",
@@ -177,9 +173,6 @@ Used when you need to **both encrypt and digitally sign** for a specific recipie
 ---
 
 ## Frequently Asked Questions
-
-**Q: Can a forgotten private key password be recovered?**
-A: No. Generate a new key pair and distribute the new public key to your partners.
 
 **Q: Can I share a `.sig.json` file publicly?**
 A: This file contains **unencrypted** content. Only share it if the content doesn't need to be kept secret. Use `.env.json` for content confidentiality.
