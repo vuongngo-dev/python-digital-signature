@@ -177,17 +177,11 @@ class SignerView(QWidget):
         lbl1.setStyleSheet("font-weight: bold; color: #cbd5e1;")
         config_layout.addRow(lbl1, self.key_combo)
 
-        self.envelope_checkbox = QCheckBox("Bao Thư Số (Mã hóa toàn bộ nội dung)")
-        self.envelope_checkbox.setStyleSheet("color: #cbd5e1; font-weight: bold; spacing: 10px;")
-        
         self.recipient_key_combo = QComboBox()
-        self.recipient_key_combo.setEnabled(False)
-        self.envelope_checkbox.toggled.connect(self.recipient_key_combo.setEnabled)
         
         lbl2 = QLabel("Public Key (Người Nhận):")
         lbl2.setStyleSheet("font-weight: bold; color: #cbd5e1;")
         
-        config_layout.addRow("", self.envelope_checkbox)
         config_layout.addRow(lbl2, self.recipient_key_combo)
         
         self.refresh_keys_btn = QPushButton("Làm mới danh sách khóa")
@@ -201,23 +195,6 @@ class SignerView(QWidget):
         self.doc_input = QTextEdit()
         self.doc_input.setPlaceholderText("Nhập nội dung cần ký/mã hóa...")
         doc_card.addWidget(self.doc_input)
-
-        canvas_label = QLabel("Chữ ký của bạn (Ký tay hoặc Nhập ảnh):")
-        canvas_label.setStyleSheet("font-weight: bold; color: #cbd5e1;")
-        doc_card.addWidget(canvas_label)
-        
-        self.canvas = CanvasWidget()
-        doc_card.addWidget(self.canvas)
-        
-        btn_layout = QHBoxLayout()
-        self.clear_btn = QPushButton("Xóa chữ ký")
-        self.clear_btn.clicked.connect(self.canvas.clear)
-        self.import_sig_btn = QPushButton("Nhập ảnh chữ ký...")
-        self.import_sig_btn.clicked.connect(self.import_signature_image)
-        btn_layout.addWidget(self.clear_btn)
-        btn_layout.addWidget(self.import_sig_btn)
-        doc_card.addLayout(btn_layout)
-
         # Sign Button
         self.sign_btn = QPushButton("Thực hiện Ký / Đóng Bao Thư")
         self.sign_btn.setObjectName("PrimaryButton")
@@ -240,13 +217,6 @@ class SignerView(QWidget):
             if k['has_public']:
                 self.recipient_key_combo.addItem(k['name'], userData=k)
 
-    def import_signature_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Chọn ảnh chữ ký", "", "Image Files (*.png *.jpg *.jpeg *.bmp)")
-        if path:
-            success = self.canvas.load_image(path)
-            if not success:
-                QMessageBox.warning(self, "Lỗi", "Không thể đọc ảnh chữ ký!")
-
     def sign_document(self):
         doc_text = self.doc_input.toPlainText().strip()
         if not doc_text:
@@ -257,34 +227,48 @@ class SignerView(QWidget):
         if not sender_data:
             QMessageBox.warning(self, "Lỗi", "Vui lòng chọn khóa bí mật của bạn để ký!")
             return
-            
-        is_envelope = self.envelope_checkbox.isChecked()
+
+        # Hiển thị hộp thoại hỏi người dùng có muốn đóng bao thư số hay không
+        reply = QMessageBox.question(
+            self, 
+            "Xác nhận hình thức ký",
+            "Bạn có muốn đóng gói tài liệu này trong Bao Thư Số không?\n\n"
+            "- Chọn 'Yes' (Đồng ý): Sẽ tạo bao thư số (mã hóa + ký bằng Public Key của người nhận).\n"
+            "- Chọn 'No' (Không): Chỉ ký số thông thường (không mã hóa).\n"
+            "- Chọn 'Cancel' (Hủy): Hủy bỏ thao tác.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes
+        )
+
+        if reply == QMessageBox.StandardButton.Cancel:
+            return
+
+        is_envelope = (reply == QMessageBox.StandardButton.Yes)
         recipient_data = self.recipient_key_combo.currentData()
         if is_envelope and not recipient_data:
-            QMessageBox.warning(self, "Lỗi", "Vui lòng chọn khóa public của người nhận!")
+            QMessageBox.warning(self, "Lỗi", "Vui lòng chọn khóa Public của người nhận để đóng bao thư!")
             return
 
         try:
             sender_private_key = km.load_private_key(sender_data['private_path'])
             sender_public_pem = km.get_public_key_pem(sender_data['public_path'])
-            canvas_b64 = self.canvas.get_base64_image()
-
+             
             if is_envelope:
                 recipient_public_key = km.load_public_key(recipient_data['public_path'])
-                envelope_dict = create_envelope(doc_text, canvas_b64, recipient_public_key, sender_private_key)
+                envelope_dict = create_envelope(doc_text, recipient_public_key, sender_private_key)
                 
                 save_path, _ = QFileDialog.getSaveFileName(self, "Lưu file Bao thư số", "", "Envelope Files (*.env.json)")
                 if save_path:
                     save_envelope_file(envelope_dict, sender_public_pem, Path(save_path))
                     QMessageBox.information(self, "Thành công", f"Đã đóng bao thư và lưu tại:\n{save_path}")
             else:
-                full_content_to_sign = doc_text + "\n---CANVAS---\n" + canvas_b64
+                full_content_to_sign = doc_text
                 signer = Signer()
                 signature_bytes = signer.sign(full_content_to_sign.encode('utf-8'), sender_private_key)
                 
                 import base64, json
                 signature_b64 = base64.b64encode(signature_bytes).decode('utf-8')
-                saved_content = {"text": doc_text, "canvas_image": canvas_b64}
+                saved_content = {"text": doc_text}
                 
                 save_path, _ = QFileDialog.getSaveFileName(self, "Lưu file Chữ ký số", "", "Signature Files (*.sig.json)")
                 if save_path:
@@ -410,7 +394,7 @@ class VerifierView(QWidget):
             finally:
                 os.remove(temp_path)
                 
-            content_str, canvas_b64, is_valid = open_envelope(self.loaded_data, recipient_priv_key, sender_pub_key)
+            content_str, is_valid = open_envelope(self.loaded_data, recipient_priv_key, sender_pub_key)
             self.doc_display.setText(content_str)
             
             if is_valid:
@@ -444,8 +428,11 @@ class VerifierView(QWidget):
             try:
                 content_json = json.loads(content_str)
                 text_part = content_json.get("text", "")
-                canvas_part = content_json.get("canvas_image", "")
-                full_content_to_sign = text_part + "\n---CANVAS---\n" + canvas_part
+                canvas_part = content_json.get("canvas_image", None)
+                if canvas_part is not None:
+                    full_content_to_sign = text_part + "\n---CANVAS---\n" + canvas_part
+                else:
+                    full_content_to_sign = text_part
             except json.JSONDecodeError:
                 full_content_to_sign = content_str
                 
