@@ -41,7 +41,7 @@ def save_signature_file(
         "type": "digital_signature",
         "version": "1.0",
         "timestamp": datetime.datetime.now().isoformat(),
-        "algorithm": "RSA-PSS-SHA256",
+        "algorithm": "Custom-RSA-SHA256",
         "content": content,
         "signature": signature_b64,
         "signer_public_key": public_key_pem,
@@ -79,9 +79,9 @@ def save_envelope_file(
         "version": "1.0",
         "timestamp": datetime.datetime.now().isoformat(),
         "algorithm": {
-            "symmetric": "AES-256-GCM",
-            "asymmetric": "Textbook-RSA",
-            "signature": "RSA-PSS-SHA256"
+            "symmetric": "Custom-AES-256-CTR",
+            "asymmetric": "Custom-RSA",
+            "signature": "Custom-RSA-SHA256"
         },
         "encrypted_content": envelope["encrypted_content"],
         "aes_nonce": envelope["aes_nonce"],

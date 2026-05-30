@@ -6,31 +6,30 @@
 import os
 import json
 import base64
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from core.crypto_aes import CryptoAES
 from .signer import Signer
 
-def create_envelope(content_str: str, canvas_b64: str, recipient_public_key: tuple, sender_private_key: tuple) -> dict:
+def create_envelope(content_str: str, recipient_public_key: tuple, sender_private_key: tuple) -> dict:
     """
     Tạo bao thư số (Digital Envelope).
-    Sử dụng AES-256-GCM để mã hóa nội dung.
+    Sử dụng AES-256-CTR (Custom) để mã hóa nội dung.
     Sử dụng RSA của recipient để mã hóa khóa AES.
     Sử dụng RSA của sender để ký toàn bộ khối dữ liệu.
     """
     # 1. Tạo AES-256 key ngẫu nhiên
-    aes_key = AESGCM.generate_key(bit_length=256)
-    aesgcm = AESGCM(aes_key)
-    nonce = os.urandom(12)
+    aes_key = CryptoAES.generate_key()
+    nonce = CryptoAES.generate_nonce()
 
-    # 2. Đóng gói content + canvas lại thành 1 JSON dict
+    # 2. Đóng gói content lại thành 1 JSON dict
     payload_data = {
-        "text": content_str,
-        "canvas_image": canvas_b64
+        "text": content_str
     }
     payload_bytes = json.dumps(payload_data).encode('utf-8')
 
-    # 3. Mã hóa bằng AES-GCM
-    ciphertext_with_tag = aesgcm.encrypt(nonce, payload_bytes, None)
+    # 3. Mã hóa bằng custom AES-256-CTR
+    aes = CryptoAES(aes_key)
+    ciphertext = aes.encrypt(payload_bytes, nonce)
 
     # 4. Mã hóa AES key bằng RSA của Recipient (Textbook RSA)
     e, n = recipient_public_key
@@ -41,7 +40,7 @@ def create_envelope(content_str: str, canvas_b64: str, recipient_public_key: tup
     # 5. Ký điện tử (Sign) toàn bộ các phần quan trọng
     # Định dạng dữ liệu để ký
     envelope_meta = {
-        "ciphertext": base64.b64encode(ciphertext_with_tag).decode('utf-8'),
+        "ciphertext": base64.b64encode(ciphertext).decode('utf-8'),
         "nonce": base64.b64encode(nonce).decode('utf-8'),
         "encrypted_aes_key": base64.b64encode(encrypted_aes_key_bytes).decode('utf-8')
     }
@@ -63,10 +62,10 @@ def create_envelope(content_str: str, canvas_b64: str, recipient_public_key: tup
 def open_envelope(envelope: dict, recipient_private_key: tuple, sender_public_key: tuple) -> tuple:
     """
     Mở bao thư số (Digital Envelope).
-    Trả về (content_str, canvas_b64, is_signature_valid)
+    Trả về (content_str, is_signature_valid)
     """
     # 1. Trích xuất thông tin
-    ciphertext_with_tag = base64.b64decode(envelope["encrypted_content"])
+    ciphertext = base64.b64decode(envelope["encrypted_content"])
     nonce = base64.b64decode(envelope["aes_nonce"])
     encrypted_aes_key_bytes = base64.b64decode(envelope["encrypted_aes_key"])
     signature_bytes = base64.b64decode(envelope["signature"])
@@ -93,16 +92,14 @@ def open_envelope(envelope: dict, recipient_private_key: tuple, sender_public_ke
     except OverflowError:
         raise ValueError("Lỗi giải mã khóa AES: Private key của bạn không đúng hoặc bao thư bị hỏng.")
 
-    # 4. Giải mã nội dung bằng AES-GCM
-    aesgcm = AESGCM(aes_key)
+    # 4. Giải mã nội dung bằng custom AES-256-CTR
     try:
-        decrypted_payload_bytes = aesgcm.decrypt(nonce, ciphertext_with_tag, None)
+        aes = CryptoAES(aes_key)
+        decrypted_payload_bytes = aes.decrypt(ciphertext, nonce)
+        payload_data = json.loads(decrypted_payload_bytes.decode('utf-8'))
     except Exception:
         raise ValueError("Không thể giải mã nội dung. Chìa khóa sai hoặc dữ liệu đã bị sửa đổi!")
 
-    payload_data = json.loads(decrypted_payload_bytes.decode('utf-8'))
-    
     content_str = payload_data.get("text", "")
-    canvas_b64 = payload_data.get("canvas_image", "")
 
-    return content_str, canvas_b64, is_valid
+    return content_str, is_valid
